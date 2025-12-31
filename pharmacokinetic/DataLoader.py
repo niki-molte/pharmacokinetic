@@ -37,7 +37,7 @@ class DataLoader:
         '''
         Convert patient data to a dictionary.
         :param patient_data: The patient data to be converted.
-        :return: A dictionary with the patient data.
+        :return: a dictionary with the patient data.
         '''
         if patient_data.empty:
             raise KeyError("the patient data does not contains data")
