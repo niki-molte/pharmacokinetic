@@ -135,16 +135,40 @@ class IV_OneCompartmentModel(BaseModel):
 
     def get_name(self): return "IV Bolus (1-Comp)"
 
+    def ode_system(self, y, t, ke):
+        '''
+        Define the system of Ordinary Differential Equations (ODEs).
+        Describes the drug excretion from the blood.
+
+        :param y: list containing current amounts [Amount_blood].
+        :param t: current time point (required by odeint, but not used explicitly in equations).
+        :param ke: elimination constant.
+        :return: list of derivatives [dAblood].
+        '''
+        A_blood = y
+
+        dAdt = -ke * A_blood
+        return np.ravel([dAdt])
+
     def simulate(self, t, dose, ke, V):
         '''
-        Analytical solution is faster and more precise than ODE for 1-Comp IV.
+        Simulate the drug concentration over time.
+
+        :param t: array-like object containing time points.
+        :param dose: float representing the administered dose.
+        :param ka: absorption constant (1/h).
+        :param ke: elimination constant (1/h).
+        :param V: volume of distribution (L).
+        :return: array-like object containing simulated concentration values (mg/L).
         '''
-        t = np.asarray(t)
+        y0 = dose
 
-        if V <= 0:
-            V = 1e-10
+        # solve the ODE system
+        # args=(ke,) passa ke come parametro aggiuntivo
+        sol = odeint(self.ode_system, y0, t, args=(ke,))
 
-        return (dose / V) * np.exp(-ke * t)
+        # return concentration (Amount in blood / Volume)
+        return sol.flatten() / V
 
     def get_initial_guesses(self):
         # Guess typical for Indomethacin: V ~10-15L, ke ~0.1-0.3

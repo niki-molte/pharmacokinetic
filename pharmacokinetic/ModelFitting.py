@@ -1,6 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.optimize import curve_fit
+import traceback
 
 
 class PKAnalyzer:
@@ -95,6 +96,7 @@ class PKAnalyzer:
 
         except Exception as e:
             print(f"Fitting error for {name}: {e}")
+            traceback.print_exc()
 
     def print_terminal_report(self):
         '''
