@@ -9,7 +9,7 @@ from pharmacokinetic.DataLoader import DataLoader
 if __name__ == "__main__":
     #loader = TheophDataLoader()
     loader = DataLoader("datasets/Indomethacin.csv")
-    patient_data = loader.get_patient_data(3)
+    patient_data = loader.get_patient_data(5)
 
     print(loader.patient_data_todict(patient_data))
 

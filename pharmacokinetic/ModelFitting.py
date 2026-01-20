@@ -41,24 +41,41 @@ class PKAnalyzer:
             # 1. Curve Fitting
             p0 = model_instance.get_initial_guesses()
 
-            # Perform non-linear least squares optimization
-            popt, _ = curve_fit(
+            # weights are useful because the error is non-linear.
+            # higher at high drug concentration.
+            sigma_weights = np.maximum(self.data['Conc'], 1e-6)
+
+            # --- CURVE FITTING ---
+            popt, pcov = curve_fit(
                 func_to_fit,
                 self.data['Time'],
                 self.data['Conc'],
                 p0=p0,
-                bounds=(0, np.inf),  # Parameters must be positive
-                maxfev=10000  # Increase max iterations for convergence
+                bounds=(0, np.inf),
+                sigma=sigma_weights,
+                absolute_sigma=False,  # scale the covariance on chi-squared
+                maxfev=10000
             )
+
+            # evaluating RSE
+            perr = np.sqrt(np.diag(pcov))
+            rse_percent = (perr / popt) * 100
 
             # 2. Calculation of Error Statistics (R2, AIC)
             y_pred = func_to_fit(self.data['Time'], *popt)
             residuals = self.data['Conc'] - y_pred
 
+            weights = 1.0 / (sigma_weights ** 2)
+
+            # weighted sum of residuals and weighted residual evaluation
+            ss_res = np.sum(weights * (residuals ** 2))
+            weighted_residuals = residuals / sigma_weights
+
+
             # Sum of Squared Residuals (SS_res)
-            ss_res = np.sum(residuals ** 2)
+            #ss_res = np.sum(residuals ** 2)
             # Total Sum of Squares (SS_tot)
-            ss_tot = np.sum((self.data['Conc'] - np.mean(self.data['Conc'])) ** 2)
+            #ss_tot = np.sum((self.data['Conc'] - np.mean(self.data['Conc'])) ** 2)
 
             n = len(self.data['Conc'])  # Number of data points
             k = len(popt)  # Number of parameters
@@ -66,7 +83,7 @@ class PKAnalyzer:
             # Akaike Information Criterion (AIC) - Lower is better
             aic = n * np.log(ss_res / n) + 2 * k
             # Coefficient of Determination (R2) - Closer to 1 is better
-            r2 = 1 - (ss_res / ss_tot)
+            #r2 = 1 - (ss_res / ss_tot)
 
             # 3. Calculation of Secondary Metrics (AUC, Cmax, Tmax)
             # Generate a high-resolution curve to accurately find peaks and area
@@ -84,13 +101,16 @@ class PKAnalyzer:
             self.results[name] = {
                 'model': model_instance,
                 'params_raw': popt,
+                'params_se': perr,  # standard error
+                'w_residuals': weighted_residuals,
+                'params_rse': rse_percent,  # RSE
                 'real_params': model_instance.get_real_parameters(popt),
                 'aic': aic,
-                'r2': r2,
                 'secondary': {
                     'Cmax': c_max,
                     'Tmax': t_max,
-                    'AUC': auc_0_inf
+                    'AUC': auc_0_inf,
+                    'AUC_ratio': np.trapezoid(self.data['Conc'], self.data['Time'])/auc_0_inf
                 }
             }
 
@@ -105,7 +125,7 @@ class PKAnalyzer:
         '''
         d = self.data
         print("\n" + "=" * 70)
-        print(f" CLINICAL PHARMACOKINETIC REPORT - PATIENT ID: {d['Subject']}")
+        print(f" CLINICAL PHARMACOKINETIC REPORT - PATIENT ID: {d.get('Subject', 'Unknown')}")
         print("=" * 70)
 
         # SECTION 1: PATIENT DATA
@@ -124,19 +144,28 @@ class PKAnalyzer:
 
             # SECTION 2: FIT QUALITY
             print(f" [Model Quality / Goodness of Fit]")
-            print(f" {'R² (Data Fidelity)':<35} : {res['r2']:.4f} (1.0 = perfect)")
-            print(f" {'AIC (Parsimony)':<35} : {res['aic']:.2f} (Lower is better)")
+            print(f" {'AIC':<35} : {res['aic']:.2f} (Lower is better)")
+            # RSE rimosso da qui perché viene dettagliato nella tabella sotto
 
             # SECTION 3: PHYSIOLOGICAL PARAMETERS
             print(f"\n [Physiological Parameters]")
-            print(f" {'PARAMETER':<40} | {'VALUE':<10} | {'UNIT'}")
+            print(f" {'PARAMETER':<40} | {'VALUE':<10} | {'UNIT':<10} | {'RSE (%)':<10}")
             print("-" * 70)
+
+            # Recuperiamo l'array degli RSE calcolati
+            rse_values = res['params_rse']
+            idx = 0  # Indice per scorrere gli RSE
+
             for param_name, (val, unit) in res['real_params'].items():
                 if val is None:
                     # Separator line
                     print(f"--- {param_name} ---")
                 else:
-                    print(f" {param_name:<40} | {val:<10.4f} | {unit}")
+                    # extracting RSE
+                    current_rse = rse_values[idx] if idx < len(rse_values) else 0.0
+                    idx += 1
+
+                    print(f" {param_name:<40} | {val:<10.4f} | {unit:<10} | {current_rse:<10.2f}")
 
             # SECTION 4: DERIVED CLINICAL METRICS
             sec = res['secondary']
@@ -144,6 +173,7 @@ class PKAnalyzer:
             print(f" {'Peak Concentration (Cmax)':<35} : {sec['Cmax']:.2f} mg/L")
             print(f" {'Time to Peak (Tmax)':<35} : {sec['Tmax']:.2f} hours post-dose")
             print(f" {'Total Exposure (AUC)':<35} : {sec['AUC']:.2f} mg*h/L")
+            print(f" {'Exposure ratio (AUC)':<35} : {sec['AUC_ratio']:.2f}")
 
             print("=" * 70)
 
