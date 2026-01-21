@@ -151,7 +151,7 @@ class PKAnalyzer:
             # SECTION 3: PHYSIOLOGICAL PARAMETERS
             print(f"\n [Physiological Parameters]")
             print(f" {'PARAMETER':<40} | {'VALUE':<10} | {'UNIT':<10} | {'RSE (%)':<10}")
-            print("-" * 70)
+            print("-" * 80)
 
             # Recuperiamo l'array degli RSE calcolati
             rse_values = res['params_rse']
@@ -176,7 +176,7 @@ class PKAnalyzer:
             print(f" {'Total Exposure (AUC)':<35} : {sec['AUC']:.2f} mg*h/L")
             print(f" {'Exposure ratio (AUC)':<35} : {sec['AUC_ratio']:.2f}")
 
-            print("=" * 70)
+            print("=" * 80)
 
     def plot_comparison(self):
         '''
