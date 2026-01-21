@@ -1,4 +1,4 @@
-import pandas as pd
+import matplotlib.pyplot as plt
 
 from pharmacokinetic.CompartmentsModels import OneCompartmentModel, TwoCompartmentModel, \
     IV_OneCompartmentModel, IV_TwoCompartmentModel
@@ -28,3 +28,7 @@ if __name__ == "__main__":
 
     # 2. Mostra il grafico pulito
     analyzer.plot_comparison()
+
+    analyzer.plot_comparative_diagnostic_panel()
+
+    #plt.show()
