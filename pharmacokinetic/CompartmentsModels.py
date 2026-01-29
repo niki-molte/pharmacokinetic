@@ -6,8 +6,8 @@ from abc import ABC, abstractmethod
 
 class BaseModel(ABC):
     '''
-    Abstract base class for Pharmacokinetic (PK) models.
-    Enforces the structure for simulation and parameter translation.
+    Abstract base class for Pharmacokinetic models.
+    It defines the structure for simulation and parameter translation.
     '''
 
     @abstractmethod
@@ -26,7 +26,7 @@ class BaseModel(ABC):
         '''
         Get the descriptive name of the model.
 
-        :return: string representing the model name.
+        :return: string containing the model name.
         '''
         return "BaseModel"
 
@@ -51,7 +51,7 @@ class BaseModel(ABC):
 
 class OneCompartmentModel(BaseModel):
     '''
-    Implementation of the One-Compartment PK model with first-order absorption.
+    Implementation of the One-Compartment model with absorption.
     '''
 
     def get_name(self):
@@ -64,11 +64,11 @@ class OneCompartmentModel(BaseModel):
 
     def ode_system(self, y, t, ka, ke):
         '''
-        Define the system of Ordinary Differential Equations (ODEs).
-        Describes the transfer of drug from the gut to the blood.
+        Define the system of ordinary differential equations.
+        It describes the transfer of drug from the gut to the blood.
 
         :param y: list containing current amounts [Amount_gut, Amount_blood].
-        :param t: current time point (required by odeint, but not used explicitly in equations).
+        :param t: current time point, it is required by odeint, not used in equations.
         :param ka: absorption constant.
         :param ke: elimination constant.
         :return: list of derivatives [dAgut, dAblood].
@@ -113,9 +113,9 @@ class OneCompartmentModel(BaseModel):
         :return: dictionary mapping parameter names to a tuple of (value, unit).
         '''
         ka, ke, V = popt
-        # Calculation of significant derived parameters
-        half_life = np.log(2) / ke  # t1/2 = ln(2)/ke
-        clearance = V * ke  # Cl = V * ke
+        # calculating significant derived parameters
+        half_life = np.log(2) / ke
+        clearance = V * ke
 
         return {
             "Absorption Constant (ka)": (ka, "1/h"),
@@ -129,19 +129,24 @@ class OneCompartmentModel(BaseModel):
 
 class IV_OneCompartmentModel(BaseModel):
     '''
-    One-Compartment Model for IV Bolus administration.
-    Equation: C(t) = (Dose / V) * exp(-ke * t)
+    Implementation of the One-Compartment Model for IV Bolus administration.
     '''
 
-    def get_name(self): return "IV Bolus (1-Comp)"
+    def get_name(self):
+        '''
+        Get the descriptive name of the model.
+
+        :return: string containing the model name.
+        '''
+        return "IV Bolus (1-Comp)"
 
     def ode_system(self, y, t, ke):
         '''
-        Define the system of Ordinary Differential Equations (ODEs).
+        Define the system of ordinary differential equations.
         Describes the drug excretion from the blood.
 
         :param y: list containing current amounts [Amount_blood].
-        :param t: current time point (required by odeint, but not used explicitly in equations).
+        :param t: current time point required by odeint not used in equations.
         :param ke: elimination constant.
         :return: list of derivatives [dAblood].
         '''
@@ -164,14 +169,18 @@ class IV_OneCompartmentModel(BaseModel):
         y0 = dose
 
         # solve the ODE system
-        # args=(ke,) passa ke come parametro aggiuntivo
+        # args=(ke,) send ke as additional parameter
         sol = odeint(self.ode_system, y0, t, args=(ke,))
 
         # return concentration (Amount in blood / Volume)
         return sol.flatten() / V
 
     def get_initial_guesses(self):
-        # Guess typical for Indomethacin: V ~10-15L, ke ~0.1-0.3
+        '''
+         Get initial parameter guesses for the optimization algorithm.
+
+         :return: list of float values [ke, V].
+         '''
         return [0.2, 10.0]  # [ke, V]
 
     def get_real_parameters(self, popt):
@@ -189,15 +198,15 @@ class IV_OneCompartmentModel(BaseModel):
 
 class TwoCompartmentModel(BaseModel):
     '''
-    Implementation of the Two-Compartment PK model.
-    Includes a central compartment (blood) and a peripheral compartment (tissues).
+    Implementation of the Two-Compartment model.
+    It includes a central compartment (blood) and a peripheral compartment (tissues).
     '''
 
     def get_name(self):
         '''
         Get the descriptive name of the model.
 
-        :return: string representing the model name.
+        :return: string containing the model name.
         '''
         return "Two-Compartment Model"
 
@@ -237,7 +246,7 @@ class TwoCompartmentModel(BaseModel):
         y0 = [dose, 0.0, 0.0]
         sol = odeint(self.ode_system, y0, t, args=(ka, ke, kcp, kpc))
 
-        # concentration is amount in central compartment / Volume of central compartment
+        # concentration = central compartment / Volume of central compartment
         return sol[:, 1] / V
 
     def get_initial_guesses(self):
@@ -256,8 +265,7 @@ class TwoCompartmentModel(BaseModel):
         :return: dictionary mapping parameter names to a tuple of (value, unit).
         '''
         ka, ke, kcp, kpc, V = popt
-        # Beta phase half-life (approximation for slow elimination phase)
-        # We use central elimination half-life for simplicity here
+        # central elimination half life
         half_life_elim = np.log(2) / ke
         clearance = V * ke
 
@@ -272,49 +280,85 @@ class TwoCompartmentModel(BaseModel):
             "Body Clearance (Cl)": (clearance, "L/h")
         }
 
-
 class IV_TwoCompartmentModel(BaseModel):
     '''
     Two-Compartment Model for IV Bolus administration.
-    Drug starts in Central Comp and distributes to Peripheral.
+    Drug starts directly in the Central Compartment and distributes to the Peripheral Compartment.
     '''
 
-    def get_name(self): return "IV Bolus (2-Comp)"
+    def get_name(self):
+        '''
+        Get the name of the model.
+
+        :return: string containing the model name.
+        '''
+        return "IV Bolus (2-Comp)"
 
     def ode_system(self, y, t, ke, kcp, kpc):
+        '''
+        Define the system of ordinary differential equations.
+        It describes the transfer between central and peripheral compartments and elimination.
+
+        :param y: list containing current amounts [Amount_Central, Amount_Peripheral].
+        :param t: current time point (required by odeint).
+        :param ke: elimination rate constant from the central compartment.
+        :param kcp: distribution rate constant from central to peripheral.
+        :param kpc: redistribution rate constant from peripheral to central.
+        :return: list of derivatives [dAcent, dAperi].
+        '''
         # y = [Amount_Central, Amount_Peripheral]
         A_cent, A_peri = y
 
-        # Central loses to elimination (-ke) and to peripheral (-kcp)
-        # Central gains from peripheral (+kpc)
+        # central loses to elimination (-ke) and to peripheral (-kcp)
+        # central gains from peripheral (+kpc)
         dAcent = -ke * A_cent - kcp * A_cent + kpc * A_peri
 
-        # Peripheral gains from central (+kcp) and loses to central (-kpc)
+        # peripheral gains from central (+kcp) and loses to central (-kpc)
         dAperi = kcp * A_cent - kpc * A_peri
 
         return [dAcent, dAperi]
 
     def simulate(self, t, dose, ke, kcp, kpc, V):
-        # INITIAL CONDITION: All drug is in Central Compartment at t=0
+        '''
+        Simulate the drug concentration over time.
+
+        :param t: array-like object containing time points.
+        :param dose: float representing the administered IV bolus dose.
+        :param ke: elimination rate constant (1/h).
+        :param kcp: distribution rate constant central->peripheral (1/h).
+        :param kpc: redistribution rate constant peripheral->central (1/h).
+        :param V: volume of the central compartment (L).
+        :return: array-like object containing simulated concentration values (mg/L).
+        '''
+        # initial condition: drug is all in central compartment at t=0
         y0 = [dose, 0.0]
 
         sol = odeint(self.ode_system, y0, t, args=(ke, kcp, kpc))
 
-        # Concentration = Amount_Central / Volume_Central
+        # concentration = Amount_Central / Volume_Central
         return sol[:, 0] / V
 
     def get_initial_guesses(self):
+        '''
+        Get initial parameter guesses for the optimization algorithm.
+
+        :return: list of float values [ke, kcp, kpc, V].
+        '''
         # ke, kcp, kpc, V
-        # Indomethacin needs V around 10-15L.
-        # kcp/kpc describe the fast distribution phase.
         return [0.2, 0.5, 0.5, 15.0]
 
     def get_real_parameters(self, popt):
+        '''
+        Translate raw optimization parameters into clinical parameters.
+
+        :param popt: list containing [ke, kcp, kpc, V].
+        :return: dictionary mapping parameter names to a tuple of (value, unit).
+        '''
         ke, kcp, kpc, V = popt
 
-        # Complex derivation of alpha (fast) and beta (slow) half-lives
-        k12 = kcp;
-        k21 = kpc;
+        # beta and alpha half life
+        k12 = kcp
+        k21 = kpc
         k10 = ke
         sum_k = k12 + k21 + k10
         root = np.sqrt(sum_k ** 2 - 4 * k21 * k10)
